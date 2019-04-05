@@ -1,0 +1,9 @@
+[central-server]
+35.181.59.191
+
+#[db-servers]
+#52.47.82.0
+#
+[all:vars] 
+ansible_connection=ssh 
+ansible_user=ubuntu

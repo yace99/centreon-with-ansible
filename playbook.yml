@@ -1,0 +1,296 @@
+- name: Provisionning webservers group
+  hosts: central-server
+
+  become: yes
+  tasks:
+  - name: Centreon Clib dependencies build essential installation
+    apt: 
+      name: build-essential
+      state: latest
+      update_cache: yes
+
+  - name: Centreon Clib dependencies cmake installation
+    apt:
+      name: cmake
+      state: latest
+      update_cache: yes
+
+  - name: Centreon Clib dependencies pkg-config installation
+    apt:
+      name: pkg-config
+      state: latest
+      update_cache: yes
+
+#  - name:  Centreon Clib creating source directory
+#    file:
+#      path: /sources/centreon/
+#      state: directory
+
+
+  - name:  Centreon Clib downloading and unarchiving
+    unarchive:
+      src: https://s3-eu-west-1.amazonaws.com/centreon-download/public/centreon-clib/centreon-clib-18.10.0.tar.gz
+      dest: /home/ubuntu/
+      remote_src: yes
+
+  - name:  Centreon Clib build
+    command: cmake \ -DWITH_TESTING=0 \ -DWITH_PREFIX=/usr  \ -DWITH_SHARED_LIB=1 \ -DWITH_STATIC_LIB=0 \ -DWITH_PKGCONFIG_DIR=/usr/lib/pkgconfig .
+    args:
+      chdir: /home/ubuntu/centreon-clib-18.10.0/build/
+
+  - name:  Centreon Clib compilation
+    make:
+      chdir: /home/ubuntu/centreon-clib-18.10.0/build/
+
+  - name:  Centreon Clib installation of the target
+    make:
+      chdir: /home/ubuntu/centreon-clib-18.10.0/build/
+      target: install
+
+
+  - name: Centreon connectors dependencies libperl-dev installation
+    apt:
+      name: libperl-dev
+      state: latest
+      update_cache: yes
+
+  - name:  Centreon connectors downloading and unarchiving
+    unarchive:
+      src: https://s3-eu-west-1.amazonaws.com/centreon-download/public/centreon-connectors/centreon-connectors-18.10.0.tar.gz
+      dest: /home/ubuntu/
+      remote_src: yes
+
+  - name:  Centreon perl connector build
+    command: cmake \ -DWITH_PREFIX=/usr \  -DWITH_PREFIX_BINARY=/usr/lib/centreon-connector  \  -DWITH_CENTREON_CLIB_INCLUDE_DIR=/usr/include \ -DWITH_TESTING=0 .
+    args:
+      chdir: /home/ubuntu/centreon-connector-18.10.0/perl/build
+
+
+  - name:  Centreon perl connector compilation
+    make:
+      chdir: /home/ubuntu/centreon-connector-18.10.0/perl/build
+
+
+  - name:  Centreon perl connector installation of the target
+    make:
+      chdir: /home/ubuntu/centreon-connector-18.10.0/perl/build
+      target: install
+
+
+  - name: Centreon ssh connectors dependencies libssh2-1-dev libgcrypt11-dev installation
+    apt:
+      name: "{{ packages }}"
+      state: latest
+    vars:
+      packages:
+         - libssh2-1-dev
+         - libgcrypt11-dev
+
+
+  - name:  Centreon ssh connector build
+    command: cmake \  -DWITH_PREFIX=/usr \  -DWITH_PREFIX_BINARY=/usr/lib/centreon-connector  \ -DWITH_CENTREON_CLIB_INCLUDE_DIR=/usr/include \ -DWITH_TESTING=0 .
+    args:
+      chdir: /home/ubuntu/centreon-connector-18.10.0/ssh/build
+
+
+
+  - name:  Centreon ssh connector compilation
+    make:
+      chdir: /home/ubuntu/centreon-connector-18.10.0/ssh/build
+
+  - name:  Centreon ssh connector installation of the target
+    make:
+      chdir: /home/ubuntu/centreon-connector-18.10.0/ssh/build
+      target: install
+
+##########################################
+
+  - name: Ensuring group "centreon-engine" exists
+    group:
+      name: centreon-engine
+      state: present
+      gid: 6004
+
+  - name: Add the user 'centreon-engine' with a specific uid and a primary group of 'centreon-engine'
+    user:
+      name: centreon-engine
+      comment: Centreon-engine Admin
+      uid: 6004
+      group: centreon-engine
+      shell: /bin/bash
+      create_home: yes
+      move_home: yes
+      home: /var/lib/centreon-engine
+
+  - name:  Centreon Engine downloading and unarchiving
+    unarchive:
+      src: https://s3-eu-west-1.amazonaws.com/centreon-download/public/centreon-engine/centreon-engine-18.10.0.tar.gz
+      dest: /home/ubuntu/
+      remote_src: yes
+
+  - name:  Centreon engine build
+    command: cmake  \ -DWITH_CENTREON_CLIB_INCLUDE_DIR=/usr/include  \ -DWITH_CENTREON_CLIB_LIBRARY_DIR=/usr/lib  \  -DWITH_PREFIX=/usr  \  -DWITH_PREFIX_BIN=/usr/sbin  \   -DWITH_PREFIX_CONF=/etc/centreon-engine  \   -DWITH_USER=centreon-engine  \   -DWITH_GROUP=centreon-engine  \   -DWITH_LOGROTATE_SCRIPT=1 \   -DWITH_VAR_DIR=/var/log/centreon-engine  \  -DWITH_RW_DIR=/var/lib/centreon-engine/rw  \  -DWITH_STARTUP_SCRIPT=systemd  \  -DWITH_STARTUP_DIR=/lib/systemd/system  \   -DWITH_PKGCONFIG_SCRIPT=1 \   -DWITH_PKGCONFIG_DIR=/usr/lib/pkgconfig  \   -DWITH_TESTING=0  .
+    args:
+      chdir: /home/ubuntu/centreon-engine-18.10.0/build/
+
+  - name:  Centreon Engine compilation
+    make:
+      chdir: /home/ubuntu/centreon-engine-18.10.0/build/
+
+  - name:  Centreon Engine installation of the target
+    make:
+      chdir: /home/ubuntu/centreon-engine-18.10.0/build/
+      target: install
+
+  - name: Centreon Engine enabling service
+    command: systemctl enable centengine.service 
+
+  - name: Centreon Engine Reloading daemon
+    command: systemctl daemon-reload
+
+######################################################
+#
+
+  - name: Centreon Plugins Install list of packages
+    apt:
+      name: "{{ packages }}"
+      state: latest
+    vars:
+      packages:
+      - libgnutls28-dev
+      - libssl-dev
+      - libkrb5-dev
+      - libldap2-dev
+      - libsnmp-dev
+      - gawk 
+      - libwrap0-dev
+      - libmcrypt-dev
+      - smbclient
+      - fping
+      - gettext
+      - dnsutils
+      - libmodule-build-perl
+      - libmodule-install-perl
+      - libnet-snmp-perl
+
+  - name:  Centreon Plugins downloading and unarchiving monitoring plugin
+    unarchive:
+      src: https://www.monitoring-plugins.org/download/monitoring-plugins-2.2.tar.gz
+      dest: /home/ubuntu/
+      remote_src: yes
+      validate_certs: no
+
+  - name:  Centreon Plugins downloading and unarchiving nagios plugin
+    unarchive:
+      src:  http://nagios-plugins.org/download/nagios-plugins-2.2.1.tar.gz 
+      dest: /home/ubuntu/
+      remote_src: yes
+            
+  - name: Centreon Plugins Compilation1
+    command: ./configure --with-nagios-user=centreon-engine --with-nagios-group=centreon-engine --prefix=/usr/lib/nagios/plugins --libexecdir=/usr/lib/nagios/plugins --enable-perl-modules --with-openssl=/usr/bin/openssl
+    args:
+      chdir: /home/ubuntu/monitoring-plugins-2.2
+
+  - name:  Centreon Plugins Compilation2
+    make:
+      chdir: /home/ubuntu/monitoring-plugins-2.2
+
+  - name:  Centreon Plugins installation
+    make:
+      chdir: /home/ubuntu/monitoring-plugins-2.2
+      target: install
+
+  - name: Centreon Plugins list of plugins
+    apt:
+      name: "{{ packages }}"
+      state: latest
+    vars:
+      packages: 
+      - libgnutls28-dev
+      - libssl-dev
+      - libwww-perl
+      - libxml-xpath-perl
+      - libnet-telnet-perl
+      - libnet-ntp-perl
+      - libnet-dns-perl 
+      - libdbi-perl
+      - libdbd-mysql-perl
+      - libdbd-pg-perl
+      - libdatetime-perl
+      - liburi-encode-perl
+      - libdate-manip-perl
+      - git-core
+
+  - name: clone git repo
+    git:
+      repo: 'https://github.com/centreon/centreon-plugins.git'
+      dest: /usr/lib/centreon/plugins/
+      clone: yes
+      update: yes
+      force: yes
+
+
+  - name: make executable
+    file:
+      path: /usr/lib/centreon/plugins/centreon_plugins.pl
+      mode: "u+x,g+x,o+x"
+
+
+#####################################
+#
+#
+
+  - name: Ensuring group "centreon-broker" exists
+    group:
+      name: centreon-broker
+      state: present
+      gid: 6002
+
+  - name: Adding the user 'centreon-broker' with a specific uid and a primary group of 'centreon-broker'
+    user:
+      name: centreon-broker
+      comment: Centreon-Broker Admin
+      uid: 6002
+      group: centreon-broker
+      shell: /bin/bash
+      create_home: yes
+      move_home: yes
+      home: /var/lib/centreon-broker
+
+  - name: Adding the user 'centreon-engine' to group 'centreon-broker'
+    user:
+      name: centreon-engine 
+      groups: centreon-engine,centreon-broker
+      state: present
+
+  - name: Centreon-Broker list of plugins
+    apt:
+      name: "{{ packages }}"
+      state: latest
+    vars:
+      packages:
+      - libqt4-dev
+      - libqt4-sql-mysql
+      - libgnutls28-dev
+      - lsb-release
+      - liblua5.2-dev
+      - libpango1.0-dev
+      - libxml2-dev
+
+  - name:  RRDtool downloading and unarchiving
+      unarchive:
+        src: http://oss.oetiker.ch/rrdtool/pub/rrdtool-1.4.7.tar.gz
+        dest: /home/ubuntu/
+        remote_src: yes
+
+  - name: RRDtool Plugins Compilation1
+      command: ./configure --prefix=/opt/rddtool-broker && make && sudo make install
+
+
+  - name: Copy 
+    copy:
+      src: /opt/rddtool-broker/lib/pkgconfig/librrd.pc
+      dest: /usr/lib/pkgconfig/librrd.pc
+      remote_src: yes
+
+

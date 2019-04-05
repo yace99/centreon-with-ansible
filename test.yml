@@ -1,0 +1,5 @@
+name: Provisionning webservers group
+  hosts: central-server
+  tasks:
+  - name: pwd
+    command: pwd
