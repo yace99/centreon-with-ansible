@@ -1,4 +1,4 @@
-- name: Provisionning webservers group
+- name: Installing Centreon Nagios on Ubunt 18.04 EC2 instance in AWS through ubuntu user
   hosts: central-server
 
   become: yes
@@ -172,6 +172,7 @@
       - libmodule-build-perl
       - libmodule-install-perl
       - libnet-snmp-perl
+      - python3-pip
 
   - name:  Centreon Plugins downloading and unarchiving monitoring plugin
     unarchive:
@@ -277,20 +278,256 @@
       - libpango1.0-dev
       - libxml2-dev
 
-  - name:  RRDtool downloading and unarchiving
-      unarchive:
-        src: http://oss.oetiker.ch/rrdtool/pub/rrdtool-1.4.7.tar.gz
-        dest: /home/ubuntu/
-        remote_src: yes
+  - name: Centreon-Broker RRDtool downloading and unarchiving
+    unarchive:
+      src: http://oss.oetiker.ch/rrdtool/pub/rrdtool-1.4.7.tar.gz
+      dest: /home/ubuntu/
+      remote_src: yes
 
-  - name: RRDtool Plugins Compilation1
-      command: ./configure --prefix=/opt/rddtool-broker && make && sudo make install
+  - name: Centreon-Broker RRDtool Plugins Compilation1
+    shell: ./configure --prefix=/opt/rddtool-broker && make && sudo make install
+    args:
+      chdir: /home/ubuntu/rrdtool-1.4.7/
 
 
-  - name: Copy 
+  - name: Centreon-Broker RRDtool copying cfg file
     copy:
       src: /opt/rddtool-broker/lib/pkgconfig/librrd.pc
       dest: /usr/lib/pkgconfig/librrd.pc
       remote_src: yes
 
 
+  - name: Centreon-Broker RRDtool creating file with content example
+    copy:
+      dest: /etc/ld.so.conf.d/rrdtool-broker.conf 
+      content: |
+        # lib rrdtools for Centreon
+        /opt/rddtool-broker/lib
+
+
+  - name:  Centreon-Broker downloading and unarchiving
+    unarchive:
+      src: https://s3-eu-west-1.amazonaws.com/centreon-download/public/centreon-broker/centreon-broker-18.10.1.tar.gz
+      dest: /home/ubuntu/
+      remote_src: yes
+
+  - name:  Centreon-Broker preparing compilation
+    command: sed -i '32i\set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++98 -fpermissive")' CMakeLists.txt
+    args:
+      chdir: /home/ubuntu/centreon-broker-18.10.1/build
+
+
+  - name:  Centreon-Broker build
+    command: cmake \     -DWITH_DAEMONS='central-broker;central-rrd' \     -DWITH_GROUP=centreon-broker \     -DWITH_PREFIX=/usr  \    -DWITH_PREFIX_BIN=/usr/sbin    -DWITH_PREFIX_CONF=/etc/centreon-broker  \   -DWITH_PREFIX_LIB=/usr/lib/centreon-broker \   -DWITH_PREFIX_VAR=/var/lib/centreon-broker \   -DWITH_PREFIX_MODULES=/usr/share/centreon/lib/centreon-broker \    -DWITH_STARTUP_SCRIPT=systemd  \   -DWITH_STARTUP_DIR=/lib/systemd/system  \    -DWITH_TESTING=0 \   -DWITH_USER=centreon-broker .
+    args:
+      chdir: /home/ubuntu/centreon-broker-18.10.1/build
+
+
+  - name:  Centreon-Broker compilation et daemon reloading
+    shell: make && sudo make install && sudo systemctl enable cbd.service && sudo systemctl daemon-reload
+    args:
+      chdir: /home/ubuntu/centreon-broker-18.10.1/build
+
+################################################################################
+
+
+  - name: SNMP protocole installing list of plugins
+    apt:
+      name: "{{ packages }}"
+      state: latest
+    vars:
+      packages:
+      - snmp
+      - snmpd
+      - snmptrapd
+      - libnet-snmp-perl
+      - libsnmp-perl
+      - snmp-mibs-downloader
+
+  - name: SNMP protocole editing snmpd.conf file 1
+    replace:
+      path: /etc/snmp/snmpd.conf 
+      regexp: '^#(.*rocommunity public  localhost*)'
+      replace: '\1'
+
+  - name:  SNMP protocole editing snmpd.conf file 2
+    replace:
+      path:  /etc/snmp/snmpd.conf
+      regexp: 'udp:127.0.0.1:161'
+      replace: "udp:localhost:161"
+
+  - name: SNMP protocole re-creating snmpd file
+    copy:
+      dest: /etc/default/snmpd
+      content: |
+        # This file controls the behaviour of /etc/init.d/snmpd
+        # but not of the corresponding systemd service file.
+        # If needed, create an override file in
+        # /etc/systemd/system/snmpd.service.d/local.conf
+        # see man 5 systemd.unit and man 5 systemd.service
+
+        # Don't load any MIBs by default.
+        # You might comment this lines once you have the MIBs downloaded.
+        export MIBDIRS=/usr/share/mibs
+        export MIBS=ALL
+
+        # snmpd control (yes means start daemon).
+        SNMPDRUN=yes
+
+        # snmpd options (use syslog, close stdin/out/err).
+        SNMPDOPTS='-LS4d -Lf /dev/null -u snmp -g snmp -I -smux,mteTrigger,mteTriggerConf -p /var/run/snmpd.pid'
+
+
+  - name: SNMP protocole re-creating snmptrapd file
+    copy:
+      dest: /etc/default/snmptrapd
+      content: |
+        # This file controls the behaviour of /etc/init.d/snmptrapd
+        # but not of the corresponding systemd service file.
+        # If needed, create an override file in
+        # /etc/systemd/system/snmptrapd.service.d/local.conf
+        # see man 5 systemd.unit and man 5 systemd.service
+
+        # snmptrapd control (yes means start daemon).  As of net-snmp version
+        # 5.0, master agentx support must be enabled in snmpd before snmptrapd
+        # can be run.  See snmpd.conf(5) for how to do this.
+        TRAPDRUN=yes
+
+        # snmptrapd options (use syslog).
+        TRAPDOPTS='-On -Lsdf /var/log/snmptrapd.log -p /run/snmptrapd.pid'
+
+
+  - name:  SNMP protocole restarting services
+    shell: systemctl restart snmpd snmptrapd
+
+#########################################################################""
+
+
+  - name: Ensuring group "centreon" exists
+    group:
+      name: centreon
+      state: present
+      gid: 6000
+
+  - name: Adding the user 'centreon' with a specific uid and a primary group of 'centreon'
+    user:
+      name: centreon
+      comment: Centreon-Broker Admin
+      uid: 6000
+      group: centreon
+      shell: /bin/bash
+      create_home: yes
+      move_home: yes
+      home: /var/lib/centreon-broker
+
+  - name: Adding the user 'centreon-broker' to group 'centreon'
+    user:
+      name: centreon-broker
+      groups: centreon,centreon-engine,centreon-broker
+      state: present
+
+
+
+  - name: Centreon UI installing php 7.1 and dependencies 1/3
+    apt: 
+      name: software-properties-common 
+      state: latest
+      update_cache: yes
+
+  - name: Centreon UI installing php 7.1 and dependencies 2/3
+    apt_repository: 
+      repo: ppa:ondrej/php 
+      update_cache: yes
+
+  - name: Centreon UI installing php 7.1 and dependencies 3/3
+    apt:
+      name: "{{ packages }}"
+      state: latest
+    vars:
+      packages:
+      - php7.1
+      - php7.1-opcache
+      - libapache2-mod-php7.1
+      - php7.1-mysql 
+      - php7.1-curl
+      - php7.1-json
+      - php7.1-gd
+      - php7.1-mcrypt
+      - php7.1-intl
+      - php7.1-mbstring
+      - php7.1-xml
+      - php7.1-zip
+      - php7.1-fpm
+      - php7.1-readline
+      - php7.1-sqlite3
+      - php-pear
+      - sudo
+      - tofrodos
+      - lsb-release
+      - mariadb-server
+      - libconfig-inifiles-perl
+      - libcrypt-des-perl
+      - libdigest-hmac-perl
+      - libdigest-sha-perl
+      - libgd-perl
+      - php7.1-ldap
+      - php7.1-snmp
+      - php-db 
+      - php-date
+
+
+
+  - name:  Centreon UI modules activation
+    shell: a2enmod proxy_fcgi setenvif proxy rewrite  && sudo a2enconf php7.1-fpm && sudo a2dismod php7.1 && sudo systemctl restart apache2 php7.1-fpm
+
+
+  - name: Centreon UI setting time zone to Europe/Paris
+    lineinfile: dest=/etc/php/7.1/fpm/php.ini regexp={{item.regex}} line={{item.replace_with}}
+    with_items:
+      - regex: ^;date.timezone =
+        replace_with: date.timezone = Europe/Paris
+      - regex: ^date.timezone =
+        replace_with: date.timezone = Europe/Paris
+
+  - name:  Centreon UI installing composer
+    shell: php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && sudo php composer-setup.php --install-dir=/usr/bin --filename=composer
+    args:
+      chdir: /home/ubuntu/
+
+
+  - name:  Centreon UI installing perl RRDs.pm
+    shell: perl Makefile.PL && make test  && sudo make install
+    args:
+      chdir: /home/ubuntu/rrdtool-1.4.7/bindings/perl-shared
+
+
+  - name:  Centreon UI downloading and unarchiving command line
+    unarchive:
+      src: https://s3-eu-west-1.amazonaws.com/centreon-download/public/centreon/centreon-web-18.10.2.tar.gz
+      dest: /home/ubuntu/
+      remote_src: yes
+
+  - name: Installing Pexpect
+    pip:
+      name: pexpect
+
+
+  - name: Centreon UI installing web interface
+    expect:
+      command: /home/ubuntu/centreon-web-18.10.2/install.sh -i
+      responses:
+        (?i)Press enter to continue.: ""
+        (?i)--More--: ""
+        (?i)Do you accept GPL license: y
+        (?i)Do you want: y
+        (?i)Where is your Centreon directory?: /usr/share/centreon
+        (?i)Where is your Centreon log directory?: /var/log/centreon
+        (?i)Where is your Centreon binaries directory: /usr/share/centreon/bin
+        (?i)Where is your Centreon data informations directory: /usr/share/centreon/data
+        (?i)Where is rrdtool: /opt/rddtool-broker/bin/rrdtool
+        (?i)Where is PEAR: /usr/share/php/PEAR.php
+        (?i)What is the fpm-php service name ?: php7.1-fpm
+        (?i)Where is your CentreonTrapd binaries directory: /usr/share/centreon/bin
+        (?i)Where is : ""
+        (?i)NOK: n
+      echo: yes

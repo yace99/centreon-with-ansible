@@ -1,0 +1,8 @@
+- name: Provisionning webservers group
+  hosts: central-server
+  become: yes
+  tasks:
+  - expect:
+      command: sudo apt-get install -y bsd-mailx
+      responses: ""
+         

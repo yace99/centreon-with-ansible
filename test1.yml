@@ -1,0 +1,21 @@
+- name: Provisionning webservers group
+  hosts: central-server
+  become: yes
+  tasks:
+  - expect:
+      command: /home/ubuntu/centreon-web-18.10.2/install.sh -i
+      responses:
+        Press enter to continue.: ""
+        --More--: ""
+        Do you accept GPL license: y
+        Do you want: y
+        Where is your Centreon directory?: /usr/share/centreon
+        Where is your Centreon log directory?: /var/log/centreon
+        Where is your Centreon binaries directory: /usr/share/centreon/bin
+        Where is your Centreon data informations directory: /usr/share/centreon/data
+        Where is rrdtool: /opt/rddtool-broker/bin/rrdtool
+        Where is PEAR: /usr/share/php/PEAR.php
+        What is the fpm-php service name ?: php7.1-fpm
+        Where is your CentreonTrapd binaries directory: /usr/share/centreon/bin
+        Where is : ""
+      echo: yes
