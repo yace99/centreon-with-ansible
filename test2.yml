@@ -1,0 +1,57 @@
+- name: Provisionning webservers group
+  hosts: central-server
+  become: yes
+  tasks:
+  - name: Run expect to wait for a successful 
+    shell: /home/ubuntu/centreon-web-18.10.2/install.sh -i |
+      set timeout 300
+
+      expect "Press enter to continue."
+      send "\n"
+
+      expect "--More--"
+      send "\n"
+
+      expect "Do you want me to remove the centreon temporary"
+      send "n\n"
+
+      expect "Do you accept GPL license"
+      send "y\n"
+
+      expect "Do you want"
+      send "y\n"
+
+      expect "Where is your Centreon directory?"
+      send "/usr/share/centreon\n"
+
+      expect "Where is your Centreon log directory?"
+      send "/var/log/centreon\n"
+
+      expect "Where is your Centreon binaries directory"
+      send "/usr/share/centreon/bin\n"
+
+      expect "Where is your Centreon data informations directory"
+      send "/usr/share/centreon/data\n"
+
+      expect "Where is rrdtool"
+      send "/opt/rddtool-broker/bin/rrdtool\n"
+
+      expect "Where is PEAR"
+      send "/usr/share/php/PEAR.php\n"
+
+      expect "What is the fpm-php service name ?"
+      send "php7.1-fpm\n"
+
+      expect "Where is your CentreonTrapd binaries directory"
+      send "/usr/share/centreon/bin\n"
+
+      expect "Where is"
+      send "\n"
+
+      expect "ldap"
+      send "n\n"
+
+      expect "pxeboot.n12"
+      send "\n"
+
+      exit 0

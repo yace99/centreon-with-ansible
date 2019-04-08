@@ -512,22 +512,109 @@
       name: pexpect
 
 
+#  - name: Centreon UI installing web interface
+#    expect:
+#      command: /home/ubuntu/centreon-web-18.10.2/install.sh -i
+#      responses:
+#        (?i)Press enter to continue.: ""
+#        (?i)--More--: ""
+#        (?i)Do you want me to remove the centreon temporary: n
+#        (?i)Do you accept GPL license: y
+#        (?i)Do you want: y
+#        (?i)Where is your Centreon directory?: /usr/share/centreon
+#        (?i)Where is your Centreon log directory?: /var/log/centreon
+#        (?i)Where is your Centreon binaries directory: /usr/share/centreon/bin
+#        (?i)Where is your Centreon data informations directory: /usr/share/centreon/data
+#        (?i)Where is rrdtool: /opt/rddtool-broker/bin/rrdtool
+#        (?i)Where is PEAR: /usr/share/php/PEAR.php
+#        (?i)What is the fpm-php service name ?: php7.1-fpm
+#        (?i)Where is your CentreonTrapd binaries directory: /usr/share/centreon/bin
+#        (?i)Where is : ""
+#        (?i)ldap : n
+#      echo: yes
+#
+
+
   - name: Centreon UI installing web interface
-    expect:
-      command: /home/ubuntu/centreon-web-18.10.2/install.sh -i
-      responses:
-        (?i)Press enter to continue.: ""
-        (?i)--More--: ""
-        (?i)Do you accept GPL license: y
-        (?i)Do you want: y
-        (?i)Where is your Centreon directory?: /usr/share/centreon
-        (?i)Where is your Centreon log directory?: /var/log/centreon
-        (?i)Where is your Centreon binaries directory: /usr/share/centreon/bin
-        (?i)Where is your Centreon data informations directory: /usr/share/centreon/data
-        (?i)Where is rrdtool: /opt/rddtool-broker/bin/rrdtool
-        (?i)Where is PEAR: /usr/share/php/PEAR.php
-        (?i)What is the fpm-php service name ?: php7.1-fpm
-        (?i)Where is your CentreonTrapd binaries directory: /usr/share/centreon/bin
-        (?i)Where is : ""
-        (?i)NOK: n
-      echo: yes
+    shell: /home/ubuntu/centreon-web-18.10.2/install.sh -i |
+      set timeout 300
+
+      expect "Press enter to continue."
+      send "\n"
+
+      expect "--More--"
+      send "\n"
+
+      expect "Do you want me to remove the centreon temporary"
+      send "n\n"
+
+      expect "Do you accept GPL license"
+      send "y\n"
+
+      expect "Do you want"
+      send "y\n"
+
+      expect "Where is your Centreon directory?"
+      send "/usr/share/centreon\n"
+
+      expect "Where is your Centreon log directory?"
+      send "/var/log/centreon\n"
+
+      expect "Where is your Centreon binaries directory"
+      send "/usr/share/centreon/bin\n"
+
+      expect "Where is your Centreon data informations directory"
+      send "/usr/share/centreon/data\n"
+
+      expect "Where is rrdtool"
+      send "/opt/rddtool-broker/bin/rrdtool\n"
+
+      expect "Where is PEAR"
+      send "/usr/share/php/PEAR.php\n"
+
+      expect "What is the fpm-php service name ?"
+      send "php7.1-fpm\n"
+
+      expect "Where is your CentreonTrapd binaries directory"
+      send "/usr/share/centreon/bin\n"
+
+      expect "Where is"
+      send "\n"
+
+      expect "ldap"
+
+
+  - name: Centreon UI creating vendor directory
+    file:
+      path: /usr/share/centreon/vendor/
+      state: directory
+
+  - name: Centreon UI copying vendor directory in the centreon directory
+    synchronize:
+      src: /home/ubuntu/centreon-web-18.10.2/vendor/
+      dest: /usr/share/centreon/vendor/
+    delegate_to: "{{ inventory_hostname }}"
+
+  - name: Centreon UI editing centreon.config.php
+    replace: path=/usr/share/centreon/config/centreon.config.php regexp={{item.regex}} replace={{item.replace_with}}
+    with_items:
+      - regex: '@CENTREON_ETC@'
+        replace_with: '/etc/centreon'
+      - regex: '@CENTREON_LOG@'
+        replace_with: '/var/log/centreon'
+      - regex: '@CENTREON_VARLIB@'
+        replace_with: '/var/lib/centreon'
+
+  - name: Centreon UI editing www/index.html
+    replace:
+      path: /usr/share/centreon/www/index.html
+      regexp: '_CENTREON_PATH_PLACEHOLDER_'
+      replace: 'centreon'
+
+  - name: Centreon UI editing centreon.config.php
+    replace: path={{item}} regexp=@PHP_BIN@ replace=/usr/bin/php
+    with_items:
+      - '/usr/share/centreon/bin/centreon'
+      - '/usr/share/centreon/bin/export-mysql-indexes'
+      - '/usr/share/centreon/bin/generateSqlLite'
+      - '/usr/share/centreon/bin/import-mysql-indexes'
