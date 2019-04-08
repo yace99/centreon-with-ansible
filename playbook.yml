@@ -618,3 +618,12 @@
       - '/usr/share/centreon/bin/export-mysql-indexes'
       - '/usr/share/centreon/bin/generateSqlLite'
       - '/usr/share/centreon/bin/import-mysql-indexes'
+
+  - name: Centreon UI Download Node.js setup script
+    get_url: url=https://deb.nodesource.com/setup_8.x dest=/tmp/  mode=755
+
+  - name: Centreon UI Setup Node.js
+    command: /tmp/setup_8.x
+
+  - name: Centreon UI Install Node.js (JavaScript run-time environment)
+    apt: name=nodejs state=present

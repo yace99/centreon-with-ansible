@@ -3,37 +3,25 @@
   become: yes
   tasks:
 
-  - name: Centreon UI creating vendor directory
-    file:
-      path: /usr/share/centreon/vendor/
-      state: directory
+  - name: Centreon UI copying package-lock.json to /usr/share/centreon
+    copy: src=/home/ubuntu/centreon-web-18.10.2/package-lock.json dest=/usr/share/centreon/ remote_src=yes 
+ 
+  - name: Centreon UI copying package.json to /usr/share/centreon
+    copy: src=/home/ubuntu/centreon-web-18.10.2/package.json dest=/usr/share/centreon/ remote_src=yes
 
-  - name: Centreon UI copying vendor directory in the centreon directory
-    synchronize: 
-      src: /home/ubuntu/centreon-web-18.10.2/vendor/ 
-      dest: /usr/share/centreon/vendor/
-    delegate_to: "{{ inventory_hostname }}"
 
-  - name: Centreon UI editing centreon.config.php
-    replace: path=/usr/share/centreon/config/centreon.config.php regexp={{item.regex}} replace={{item.replace_with}}
-    with_items:
-      - regex: '@CENTREON_ETC@'
-        replace_with: '/etc/centreon'
-      - regex: '@CENTREON_LOG@'
-        replace_with: '/var/log/centreon'
-      - regex: '@CENTREON_VARLIB@'
-        replace_with: '/var/lib/centreon'
+  - name: Centreon UI building and installing
+    shell: npm install --unsafe-perm -g node-sass &&  sudo npm run build && sudo npm prune --production
+    args:
+      chdir: /usr/share/centreon
 
-  - name: Centreon UI editing www/index.html
-    replace:
-      path: /usr/share/centreon/www/index.html
-      regexp: '_CENTREON_PATH_PLACEHOLDER_'
-      replace: 'centreon'
+  - name: Centreon UI creating file .htaccess
+    copy:
+      dest: /usr/share/centreon/www
+      content: |
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+        ErrorDocument 404 /centreon/index.html
 
-  - name: Centreon UI editing centreon.config.php
-    replace: path={{item}} regexp=@PHP_BIN@ replace=/usr/bin/php
-    with_items:
-      - '/usr/share/centreon/bin/centreon'
-      - '/usr/share/centreon/bin/export-mysql-indexes'
-      - '/usr/share/centreon/bin/generateSqlLite'
-      - '/usr/share/centreon/bin/import-mysql-indexes'
