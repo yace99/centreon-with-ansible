@@ -3,25 +3,19 @@
   become: yes
   tasks:
 
-  - name: Centreon UI copying package-lock.json to /usr/share/centreon
-    copy: src=/home/ubuntu/centreon-web-18.10.2/package-lock.json dest=/usr/share/centreon/ remote_src=yes 
- 
-  - name: Centreon UI copying package.json to /usr/share/centreon
-    copy: src=/home/ubuntu/centreon-web-18.10.2/package.json dest=/usr/share/centreon/ remote_src=yes
-
-
-  - name: Centreon UI building and installing
-    shell: npm install --unsafe-perm -g node-sass &&  sudo npm run build && sudo npm prune --production
-    args:
-      chdir: /usr/share/centreon
 
   - name: Centreon UI creating file .htaccess
     copy:
-      dest: /usr/share/centreon/www
-      content: |
+      content: | 
         RewriteRule ^index\.html$ - [L]
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
         RewriteRule . /index.html [L]
         ErrorDocument 404 /centreon/index.html
+      dest: "/usr/share/centreon/www/.htaccess"
 
+  - name: changing owner to www directory
+    file:
+      path: /usr/share/centreon/www/
+      owner: www-data
+#      group: foo

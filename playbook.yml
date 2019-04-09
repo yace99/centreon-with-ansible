@@ -582,6 +582,13 @@
       send "\n"
 
       expect "ldap"
+      send "no\n"
+
+      expect "pxeboot.n12"
+      send "\n"
+
+      exit 0
+
 
 
   - name: Centreon UI creating vendor directory
@@ -627,3 +634,29 @@
 
   - name: Centreon UI Install Node.js (JavaScript run-time environment)
     apt: name=nodejs state=present
+
+  - name: Centreon UI copying package-lock.json to /usr/share/centreon
+    copy: src=/home/ubuntu/centreon-web-18.10.2/package-lock.json dest=/usr/share/centreon/ remote_src=yes
+
+  - name: Centreon UI copying package.json to /usr/share/centreon
+    copy: src=/home/ubuntu/centreon-web-18.10.2/package.json dest=/usr/share/centreon/ remote_src=yes
+
+
+  - name: Centreon UI installing 1/2
+    shell: npm install --unsafe-perm -g node-sass-middleware
+    args:
+      chdir: /usr/share/centreon
+
+
+  - name: Centreon UI installing 2/2
+    shell: npm install -g webpack
+    args:
+      chdir: /usr/share/centreon
+
+
+  - name: Centreon UI building node-sass
+    shell: npm run build:clean && npm run build:sass && npm run build:app && npm run build:post && sudo npm prune --production
+    args:
+      chdir: /usr/share/centreon
+
+
