@@ -660,3 +660,69 @@
       chdir: /usr/share/centreon
 
 
+  - name: Centreon UI creating file .htaccess
+    copy:
+      content: |
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+        ErrorDocument 404 /centreon/index.html
+      dest: "/usr/share/centreon/www/.htaccess"
+
+  - name: Centreon UI removing static directory
+    file: path= '/usr/share/centreon/www/static{{ item }}' state=absent
+    with_fileglob:
+      - /usr/share/centreon/www/static*
+
+  - name: changing owner to www directory
+    file:
+      path: /usr/share/centreon/www/
+      owner: www-data
+      recurse: yes
+      group: www-data
+
+
+  - name: Centreon UI re-creating centreon.conf file
+    copy:
+      content: |
+        #
+        # Section add by Centreon Install Setup
+        #
+
+        Alias /centreon /usr/share/centreon/www/
+
+        <LocationMatch ^/centreon/(.*\.php(/.*)?)$>
+          ProxyPassMatch fcgi://127.0.0.1:9000/usr/share/centreon/www/$1
+        </LocationMatch>
+        ProxyTimeout 300
+
+        <Directory "/usr/share/centreon/www">
+            DirectoryIndex index.php
+            Options Indexes
+            AllowOverride all
+            Order allow,deny
+            Allow from all
+            Require all granted
+        </Directory>
+
+        RedirectMatch ^/$ /centreon
+      dest: "/etc/apache2/conf-available/centreon.conf"
+
+
+  - name: Centreon UI authorizing the Centreon conf for Web Apache
+    shell: a2enconf centreon.conf
+
+  - name: Centreon UI editing www.conf
+    replace:
+      path: /etc/php/7.1/fpm/pool.d/www.conf
+      regexp: 'listen = /run/php/php7.1-fpm.sock'
+      replace: 'listen = 127.0.0.1:9000'
+
+  - name:
+    systemd:
+      name: "{{ item }}"
+      state: reloaded
+    with_items:
+      - 'apache2'
+      - 'php7.1-fpm'
