@@ -4,70 +4,32 @@
   tasks:
 
 
-  - name: Centreon UI creating file .htaccess
-    copy:
-      content: | 
-        RewriteRule ^index\.html$ - [L]
-        RewriteCond %{REQUEST_FILENAME} !-f
-        RewriteCond %{REQUEST_FILENAME} !-d
-        RewriteRule . /index.html [L]
-        ErrorDocument 404 /centreon/index.html
-      dest: "/usr/share/centreon/www/.htaccess"
+  - pip:
+      name: pymysql  
 
-  - name: Centreon UI removing static directory
-    file: path= '/usr/share/centreon/www/static{{ item }}' state=absent
-    with_fileglob:
-      - /usr/share/centreon/www/static*
+#  - name: Centreon Web Installation removing root password
+#    mysql_user: name=root
+#                password=''
+#                login_user=mysql
+#                state=present
+#
 
-  - name: changing owner to www directory
-    file:
-      path: /usr/share/centreon/www/
-      owner: www-data
-      recurse: yes
-      group: www-data 
+#  - name: update mysql root password for all root accounts "{{ dbpass }}"
+#    mysql_user: name=root password="{{ dbpass }}" priv="{{ dbname }}.*:ALL,GRANT"
+#    with_items:
+#      - localhost
+#      - 127.0.0.1
 
-
-  - name: Centreon UI re-creating centreon.conf file
-    copy:
-      content: |
-        #
-        # Section add by Centreon Install Setup
-        #
-        
-        Alias /centreon /usr/share/centreon/www/
-        
-        <LocationMatch ^/centreon/(.*\.php(/.*)?)$>
-          ProxyPassMatch fcgi://127.0.0.1:9000/usr/share/centreon/www/$1
-        </LocationMatch>
-        ProxyTimeout 300
-        
-        <Directory "/usr/share/centreon/www">
-            DirectoryIndex index.php
-            Options Indexes
-            AllowOverride all
-            Order allow,deny
-            Allow from all
-            Require all granted
-        </Directory>
-        
-        RedirectMatch ^/$ /centreon
-      dest: "/etc/apache2/conf-available/centreon.conf"
-
-
-  - name: Centreon UI authorizing the Centreon conf for Web Apache
-    shell: a2enconf centreon.conf
-
-  - name: Centreon UI editing www.conf
+  - name: Centreon UI editing www/index.html
     replace:
-      path: /etc/php/7.1/fpm/pool.d/www.conf
-      regexp: 'listen = /run/php/php7.1-fpm.sock'
-      replace: 'listen = 127.0.0.1:9000'
+      path: /lib/systemd/system/mariadb.service
+      regexp: 'LimitNOFILE=16364'
+      replace: 'LimitNOFILE=32000'
 
-  - name: 
-    systemd: 
+  - name:
+    systemd:
       name: "{{ item }}"
       state: reloaded
     with_items:
       - 'apache2'
       - 'php7.1-fpm'
- 

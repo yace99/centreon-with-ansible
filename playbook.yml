@@ -654,8 +654,27 @@
       chdir: /usr/share/centreon
 
 
-  - name: Centreon UI building node-sass
-    shell: npm run build:clean && npm run build:sass && npm run build:app && npm run build:post && sudo npm prune --production
+  - name: Centreon UI building node-sass 1/3
+    shell:  npm run build:clean && sudo npm run build:sass
+    args:
+      chdir: /usr/share/centreon
+
+
+  - name: Centreon UI building node-sass 2/3
+    shell: yes'' | sudo npm run build:app
+
+    args:
+      chdir: /usr/share/centreon
+
+#  - name: Centreon UI building node-sass 1/2
+#    expect:
+#      command: npm run build:clean && sudo npm run build:sass && sudo npm run build:app
+#      responses:
+#        (?i): "yes"
+
+
+  - name: Centreon UI building node-sass 2/2
+    shell: npm run build:post && sudo npm prune --production
     args:
       chdir: /usr/share/centreon
 
@@ -726,3 +745,57 @@
     with_items:
       - 'apache2'
       - 'php7.1-fpm'
+
+########################################################################
+#
+
+  - name: Centreon Web Installation Creating directory centreon-broker
+    file:
+      path: "{{ item }}"
+      state: directory
+      owner: centreon-broker
+      group: centreon-broker
+      mode: 0775
+    with_items:
+      - '/var/log/centreon-broker'
+      - '/var/lib/centreon-broker'
+
+
+  - name: Centreon Web Installation removing root password
+    mysql_user: name=root
+                password=''
+                check_implicit_admin=yes
+                login_user=mysql
+                login_password=''
+                state=present
+
+  - pip:
+      name: pymysql
+
+#  - name: Centreon Web Installation removing root password
+#    mysql_user: name=root
+#                password=''
+#                login_user=mysql
+#                state=present
+#
+
+#  - name: update mysql root password for all root accounts "{{ dbpass }}"
+#    mysql_user: name=root password="{{ dbpass }}" priv="{{ dbname }}.*:ALL,GRANT"
+#    with_items:
+#      - localhost
+#      - 127.0.0.1
+
+  - name: Centreon UI editing www/index.html
+    replace:
+      path: /lib/systemd/system/mariadb.service
+      regexp: 'LimitNOFILE=16364'
+      replace: 'LimitNOFILE=32000'
+
+  - name:
+    systemd:
+      name: "{{ item }}"
+      state: reloaded
+    with_items:
+      - 'apache2'
+      - 'php7.1-fpm'
+
